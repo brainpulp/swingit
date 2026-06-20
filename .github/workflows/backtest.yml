@@ -1,0 +1,78 @@
+name: backtest
+
+on:
+  push:
+    branches: ["main", "claude/**"]
+  workflow_dispatch:
+  schedule:
+    # Re-run weekly (Mondays 06:00 UTC) so the published report stays current.
+    - cron: "0 6 * * 1"
+
+# Allow the workflow to publish to GitHub Pages.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Only one Pages deployment at a time; let in-progress runs finish.
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      - name: Run tests
+        run: pytest -q
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+      - name: Cache market data
+        uses: actions/cache@v4
+        with:
+          path: .cache/data
+          key: market-data-${{ hashFiles('src/swingit/universe.py') }}
+          restore-keys: market-data-
+      - name: Run backtest
+        run: python -m swingit.cli --output dist
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+      - name: Upload trades CSV
+        uses: actions/upload-artifact@v4
+        with:
+          name: trades-csv
+          path: dist/trades.csv
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
