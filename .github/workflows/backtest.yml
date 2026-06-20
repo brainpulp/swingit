@@ -60,6 +60,8 @@ jobs:
         run: python -m swingit.experiments --output dist
       - name: Run momentum strategy
         run: python -m swingit.momentum --output dist
+      - name: Run defensive allocations
+        run: python -m swingit.allocations --output dist
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
