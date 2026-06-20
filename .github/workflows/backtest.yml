@@ -40,6 +40,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Setup Pages
+        # enablement: true creates the Pages site via the API if it doesn't
+        # exist yet, so no manual repo setting is required.
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
