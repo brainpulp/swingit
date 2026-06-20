@@ -51,6 +51,10 @@ The report puts the strategy in context rather than in isolation:
   `rsi_entry` × `stop_loss` × `profit_target` (27 combinations by default). The
   table is sorted by CAGR with the baseline highlighted, so a fragile,
   curve-fit edge is easy to spot. Disable with `--no-sweep`.
+* **Structural experiments** (`python -m swingit.experiments`) — compares the
+  baseline against a ~150-name universe and a regime-filter-off variant, each
+  vs. buy-and-hold SPY, to test whether the edge can be *deployed* into
+  competitive returns. Writes `dist/experiments.csv`.
 
 ## Quick start
 

@@ -43,6 +43,15 @@ def test_no_signal_without_drop():
     assert out["signal"].sum() == 0
 
 
+def test_regime_filter_toggle_off_ignores_regime():
+    df = _falling_frame()
+    # Regime says "never trade", but the filter is disabled -> signal still fires.
+    regime = pd.Series(False, index=df.index)
+    cfg = StrategyConfig(use_regime_filter=False)
+    out = add_signals(df, regime, cfg)
+    assert bool(out["signal"].iloc[-1]) is True
+
+
 def test_compute_regime():
     closes = pd.Series([float(c) for c in range(1, 11)])
     reg = compute_regime(closes, period=3)

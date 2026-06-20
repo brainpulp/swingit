@@ -34,6 +34,7 @@ class StrategyConfig:
     drop_lookback_days: int = 3
     drop_lookback_return: float = -0.04  # -4% over the lookback window
     regime_ma_period: int = 200
+    use_regime_filter: bool = True  # require SPY above its MA to enter
 
     profit_target: float = 0.04  # +4%
     stop_loss: float = -0.03  # -3%

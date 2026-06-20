@@ -15,3 +15,27 @@ UNIVERSE: list[str] = [
 ]
 
 assert len(UNIVERSE) == 40, "universe should contain exactly 40 tickers"
+
+# Extended ~150-name S&P 500 universe, used by the experiments harness to test
+# whether more breadth (more signals) materially improves capital deployment.
+_EXTRA: list[str] = [
+    "GOOG", "AVGO", "ACN", "LLY", "ABBV", "TMO", "DHR", "NEE", "PM", "IBM",
+    "GE", "CAT", "HON", "UNP", "LOW", "LIN", "AMGN", "SBUX", "GS", "MS",
+    "BLK", "AXP", "SPGI", "BKNG", "GILD", "MDT", "ISRG", "ADP", "AMT", "C",
+    "DE", "MMM", "CB", "MO", "SO", "DUK", "BMY", "CI", "ZTS", "MDLZ",
+    "USB", "PNC", "TGT", "CL", "ITW", "BDX", "NSC", "EW", "AON", "APD",
+    "ICE", "FCX", "EMR", "REGN", "ETN", "FDX", "HUM", "GD", "NOC", "LMT",
+    "MMC", "SCHW", "PGR", "ELV", "COP", "SLB", "EOG", "PSX", "MPC", "VLO",
+    "KMI", "WMB", "OXY", "HCA", "MET", "AIG", "PRU", "AFL", "ALL", "TRV",
+    "BK", "COF", "DOW", "DD", "PPG", "SHW", "NEM", "ECL", "ROP", "PH",
+    "CMI", "ROK", "ADI", "MU", "LRCX", "KLAC", "AMAT", "NXPI", "MCHP",
+    "SNPS", "CDNS", "INTU", "NOW", "WFC", "ADSK", "CSX", "PCAR", "MAR",
+    "HLT", "YUM", "CMG", "ROST", "TJX", "DG", "DLTR", "KMB", "GIS", "KHC",
+    "HSY", "STZ", "KDP", "MNST", "KR", "SYY", "F", "GM",
+]
+
+# De-duplicated union, preserving order.
+UNIVERSE_EXTENDED: list[str] = list(dict.fromkeys([*UNIVERSE, *_EXTRA]))
+
+assert len(UNIVERSE_EXTENDED) == len(set(UNIVERSE_EXTENDED)), "duplicate tickers"
+assert len(UNIVERSE_EXTENDED) >= 150, "extended universe should hold >= 150 tickers"

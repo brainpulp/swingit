@@ -56,6 +56,8 @@ jobs:
           restore-keys: market-data-
       - name: Run backtest
         run: python -m swingit.cli --output dist
+      - name: Run edge-validation experiments
+        run: python -m swingit.experiments --output dist
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:

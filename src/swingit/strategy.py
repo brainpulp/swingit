@@ -30,7 +30,10 @@ def add_signals(
     out = df.copy()
     out["rsi"] = rsi(out["close"], cfg.rsi_period)
     out["drop"] = n_day_return(out["close"], cfg.drop_lookback_days)
-    out["regime"] = regime.reindex(out.index).fillna(False)
+    if cfg.use_regime_filter:
+        out["regime"] = regime.reindex(out.index).fillna(False)
+    else:
+        out["regime"] = True  # filter disabled: regime never blocks entries
 
     out["signal"] = (
         (out["rsi"] < cfg.rsi_entry)
