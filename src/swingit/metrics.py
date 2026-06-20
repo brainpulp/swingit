@@ -25,9 +25,23 @@ class Metrics:
     cagr: float
     total_return: float
     final_equity: float
+    avg_exposure: float = 0.0  # mean fraction of position slots in use
 
     def as_dict(self) -> dict:
         return asdict(self)
+
+
+def equity_stats(equity: pd.Series) -> dict:
+    """Curve-level stats reusable by both the strategy and a benchmark."""
+    return {
+        "total_return": float(equity.iloc[-1] / equity.iloc[0] - 1.0)
+        if len(equity) >= 2 and equity.iloc[0] > 0
+        else 0.0,
+        "cagr": _cagr(equity),
+        "sharpe": _sharpe(equity),
+        "max_drawdown": float(drawdown_series(equity).min()) if len(equity) else 0.0,
+        "final_equity": float(equity.iloc[-1]) if len(equity) else 0.0,
+    }
 
 
 def drawdown_series(equity: pd.Series) -> pd.Series:
@@ -56,10 +70,19 @@ def compute_metrics(result: BacktestResult) -> Metrics:
     eq = result.equity_curve
     df = result.trades_df
 
+    # Average fraction of position slots in use (capital deployment proxy).
+    cap = result.config.max_positions
+    avg_exposure = (
+        float(result.exposure.mean() / cap)
+        if result.exposure is not None and len(result.exposure) and cap
+        else 0.0
+    )
+
     if df.empty:
         return Metrics(0, 0, 0, 0, 0, 0, _sharpe(eq),
                        float(drawdown_series(eq).min()) if len(eq) else 0.0,
-                       _cagr(eq), 0.0, float(eq.iloc[-1]) if len(eq) else 0.0)
+                       _cagr(eq), 0.0, float(eq.iloc[-1]) if len(eq) else 0.0,
+                       avg_exposure)
 
     rets = df["net_return"]
     wins = rets[rets > 0]
@@ -82,4 +105,5 @@ def compute_metrics(result: BacktestResult) -> Metrics:
         cagr=_cagr(eq),
         total_return=float(eq.iloc[-1] / eq.iloc[0] - 1.0),
         final_equity=float(eq.iloc[-1]),
+        avg_exposure=avg_exposure,
     )

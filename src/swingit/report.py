@@ -28,10 +28,20 @@ def _fig_to_b64(fig) -> str:
     return base64.b64encode(buf.getvalue()).decode("ascii")
 
 
-def _equity_chart(result: BacktestResult) -> str:
+def _equity_chart(result: BacktestResult, benchmark_curve=None) -> str:
     eq = result.equity_curve
     fig, ax = plt.subplots(figsize=(10, 3.6))
-    ax.plot(eq.index, eq.values, color="#1f77b4", lw=1.4)
+    ax.plot(eq.index, eq.values, color="#1f77b4", lw=1.4, label="Strategy")
+    if benchmark_curve is not None and len(benchmark_curve):
+        ax.plot(
+            benchmark_curve.index,
+            benchmark_curve.values,
+            color="#ff7f0e",
+            lw=1.2,
+            ls="--",
+            label=f"Buy & Hold {result.config.regime_symbol}",
+        )
+        ax.legend(loc="upper left", fontsize=9)
     ax.set_title("Equity Curve")
     ax.set_ylabel("Equity ($)")
     ax.grid(alpha=0.3)
@@ -103,8 +113,8 @@ def _metric_cards(m: Metrics, result: BacktestResult) -> str:
         ("Trades", str(m.n_trades)),
         ("Avg Win", _pct(m.avg_win)),
         ("Avg Loss", _pct(m.avg_loss)),
+        ("Avg Exposure", _pct(m.avg_exposure)),
         ("Final Equity", f"${m.final_equity:,.0f}"),
-        ("Initial Capital", f"${cfg.initial_capital:,.0f}"),
     ]
     return "".join(
         f'<div class="card"><div class="label">{label}</div>'
@@ -117,7 +127,78 @@ def _img(b64: str, alt: str) -> str:
     return f'<img alt="{alt}" src="data:image/png;base64,{b64}" />'
 
 
-def build_html(result: BacktestResult, metrics: Metrics) -> str:
+def _benchmark_panel(result: BacktestResult, m, benchmark_stats: dict) -> str:
+    """Strategy-vs-benchmark comparison table with a verdict line."""
+    if not benchmark_stats:
+        return ""
+    sym = result.config.regime_symbol
+    rows = [
+        ("Total Return", _pct(m.total_return), _pct(benchmark_stats["total_return"])),
+        ("CAGR", _pct(m.cagr), _pct(benchmark_stats["cagr"])),
+        ("Sharpe", f"{m.sharpe:.2f}", f"{benchmark_stats['sharpe']:.2f}"),
+        ("Max Drawdown", _pct(m.max_drawdown), _pct(benchmark_stats["max_drawdown"])),
+        ("Final Equity", f"${m.final_equity:,.0f}", f"${benchmark_stats['final_equity']:,.0f}"),
+    ]
+    body = "".join(
+        f"<tr><td>{label}</td><td>{strat}</td><td>{bench}</td></tr>"
+        for label, strat, bench in rows
+    )
+    beats = m.cagr > benchmark_stats["cagr"]
+    verdict = (
+        f"Strategy <strong>{'outperforms' if beats else 'underperforms'}</strong> "
+        f"buy &amp; hold {sym} on CAGR "
+        f"({_pct(m.cagr)} vs {_pct(benchmark_stats['cagr'])}), with average capital "
+        f"exposure of {_pct(m.avg_exposure)}."
+    )
+    return f"""
+  <div class="panel">
+    <h2>Strategy vs. Buy &amp; Hold {sym}</h2>
+    <table>
+      <thead><tr><th>Metric</th><th>Strategy</th><th>Buy &amp; Hold {sym}</th></tr></thead>
+      <tbody>{body}</tbody>
+    </table>
+    <p style="margin:12px 0 0;font-size:13px;color:#374151;">{verdict}</p>
+  </div>"""
+
+
+def _robustness_panel(sweep_df) -> str:
+    """Parameter-sweep table; the baseline row is highlighted."""
+    if sweep_df is None or len(sweep_df) == 0:
+        return ""
+    cols = [
+        "rsi_entry", "stop_loss", "profit_target", "n_trades",
+        "win_rate", "cagr", "sharpe", "max_drawdown",
+    ]
+    cols = [c for c in cols if c in sweep_df.columns]
+    head = "".join(f"<th>{c}</th>" for c in cols)
+    body_rows = []
+    for _, r in sweep_df.iterrows():
+        cells = []
+        for c in cols:
+            v = r[c]
+            if c in ("win_rate", "cagr", "max_drawdown"):
+                v = f"{v * 100:.1f}%"
+            cells.append(f"<td>{v}</td>")
+        cls = ' class="baseline"' if r.get("is_baseline") else ""
+        body_rows.append(f"<tr{cls}>" + "".join(cells) + "</tr>")
+    return f"""
+  <div class="panel">
+    <h2>Parameter Robustness ({len(sweep_df)} combinations)</h2>
+    <p style="margin:0 0 10px;font-size:13px;color:#6b7280;">
+      Sorted by CAGR. The <span class="baseline-key">highlighted</span> row is the
+      baseline configuration. Stable edges hold up across neighbouring parameters.</p>
+    <div class="scroll"><table><thead><tr>{head}</tr></thead>
+      <tbody>{''.join(body_rows)}</tbody></table></div>
+  </div>"""
+
+
+def build_html(
+    result: BacktestResult,
+    metrics: Metrics,
+    benchmark_curve=None,
+    benchmark_stats: dict | None = None,
+    sweep_df=None,
+) -> str:
     cfg = result.config
     scfg = cfg.strategy
     eq = result.equity_curve
@@ -172,6 +253,8 @@ def build_html(result: BacktestResult, metrics: Metrics) -> str:
   th:first-child, td:first-child {{ text-align: left; }}
   thead th {{ position: sticky; top: 0; background: #fafafa; }}
   .scroll {{ max-height: 420px; overflow: auto; }}
+  tr.baseline {{ background: #fff7e6; font-weight: 600; }}
+  .baseline-key {{ background: #fff7e6; padding: 0 4px; border-radius: 3px; }}
   footer {{ text-align: center; color: #9ca3af; font-size: 12px; padding: 24px; }}
   @media (max-width: 720px) {{ .grid2 {{ grid-template-columns: 1fr; }} }}
 </style>
@@ -186,10 +269,14 @@ def build_html(result: BacktestResult, metrics: Metrics) -> str:
 
   <div class="cards">{_metric_cards(metrics, result)}</div>
 
+  {_benchmark_panel(result, metrics, benchmark_stats or {})}
+
   <div class="panel">
     <h2>Equity Curve</h2>
-    {_img(_equity_chart(result), "equity curve")}
+    {_img(_equity_chart(result, benchmark_curve), "equity curve")}
   </div>
+
+  {_robustness_panel(sweep_df)}
   <div class="panel">
     <h2>Drawdown</h2>
     {_img(_drawdown_chart(result), "drawdown")}
@@ -236,19 +323,30 @@ def _trades_table(result: BacktestResult) -> str:
 
 
 def write_report(
-    result: BacktestResult, metrics: Metrics, out_dir: str | Path
+    result: BacktestResult,
+    metrics: Metrics,
+    out_dir: str | Path,
+    benchmark_curve=None,
+    benchmark_stats: dict | None = None,
+    sweep_df=None,
 ) -> tuple[Path, Path]:
-    """Write ``index.html`` and ``trades.csv`` into ``out_dir``.
+    """Write ``index.html``, ``trades.csv`` (and ``sweep.csv`` if provided).
 
-    Returns the paths to the HTML report and the CSV.
+    Returns the paths to the HTML report and the trades CSV.
     """
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
 
     html_path = out / "index.html"
-    html_path.write_text(build_html(result, metrics), encoding="utf-8")
+    html_path.write_text(
+        build_html(result, metrics, benchmark_curve, benchmark_stats, sweep_df),
+        encoding="utf-8",
+    )
 
     csv_path = out / "trades.csv"
     result.trades_df.to_csv(csv_path, index=False)
+
+    if sweep_df is not None and len(sweep_df):
+        sweep_df.to_csv(out / "sweep.csv", index=False)
 
     return html_path, csv_path

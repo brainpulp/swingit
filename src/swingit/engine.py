@@ -57,6 +57,7 @@ class BacktestResult:
     trades: list[Trade]
     equity_curve: pd.Series  # indexed by date
     config: BacktestConfig
+    exposure: pd.Series  # daily count of open positions, indexed by date
     trades_df: pd.DataFrame = field(init=False)
 
     def __post_init__(self) -> None:
@@ -121,6 +122,7 @@ def run_backtest(
     last_price: dict[str, float] = {}
     equity_dates: list[pd.Timestamp] = []
     equity_values: list[float] = []
+    exposure_counts: list[int] = []
 
     slip = cfg.slippage_rate
     comm = cfg.commission_rate
@@ -227,6 +229,7 @@ def run_backtest(
             equity += p.shares * last_price.get(p.ticker, p.entry_fill)
         equity_dates.append(d)
         equity_values.append(equity)
+        exposure_counts.append(len(open_positions))
 
     # --- Force-close anything still open at the final bar ----------------
     if open_positions and all_dates:
@@ -238,5 +241,9 @@ def run_backtest(
         # Recompute the final equity point (now all cash).
         equity_values[-1] = cash
 
-    equity_curve = pd.Series(equity_values, index=pd.DatetimeIndex(equity_dates), name="equity")
-    return BacktestResult(trades=trades, equity_curve=equity_curve, config=cfg)
+    idx = pd.DatetimeIndex(equity_dates)
+    equity_curve = pd.Series(equity_values, index=idx, name="equity")
+    exposure = pd.Series(exposure_counts, index=idx, name="open_positions")
+    return BacktestResult(
+        trades=trades, equity_curve=equity_curve, config=cfg, exposure=exposure
+    )

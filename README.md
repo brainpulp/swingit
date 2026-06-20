@@ -29,14 +29,28 @@ The project is built in four phases. **Only Phase 1 is implemented today.**
   target/stop, with the **stop checked first** (a gap through a level fills at
   the worse open price). **Equal-weight** portfolio with a **max-concurrent-
   positions** cap.
-* **Output:** a **self-contained HTML report** (`dist/index.html`) and a
-  **per-trade CSV** (`dist/trades.csv`).
+* **Output:** a **self-contained HTML report** (`dist/index.html`), a
+  **per-trade CSV** (`dist/trades.csv`), a **parameter-sweep CSV**
+  (`dist/sweep.csv`), and `metrics.json`.
 
 ### Metrics reported
 
 Win rate · expectancy · profit factor · Sharpe · max drawdown · CAGR · total
-return — plus charts for the equity curve, drawdown, trade-return distribution,
-per-ticker P&L, and exit-reason breakdown.
+return · average exposure — plus charts for the equity curve, drawdown,
+trade-return distribution, per-ticker P&L, and exit-reason breakdown.
+
+### Edge validation
+
+The report puts the strategy in context rather than in isolation:
+
+* **Buy-and-hold benchmark** — a `SPY` buy-and-hold curve (same period and cost
+  model) is overlaid on the equity curve, with a side-by-side metrics table and
+  a plain-language verdict on whether the strategy actually beats just holding
+  the index.
+* **Parameter robustness** — the backtest is re-run across a grid of
+  `rsi_entry` × `stop_loss` × `profit_target` (27 combinations by default). The
+  table is sorted by CAGR with the baseline highlighted, so a fragile,
+  curve-fit edge is easy to spot. Disable with `--no-sweep`.
 
 ## Quick start
 
